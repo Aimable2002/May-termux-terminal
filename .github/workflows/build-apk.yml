@@ -27,8 +27,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 37
-          ndk-version: 29.0.0
+          packages: 'platforms;android-37 build-tools;37.0.0 ndk;29.0.0'
       
       - name: Make gradlew executable
         run: chmod +x android/termux-apps/gradlew
@@ -36,15 +35,19 @@ jobs:
       - name: Build APK (Debug)
         run: |
           cd android/termux-apps
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace -v
+      
+      - name: List build outputs
+        if: always()
+        run: find android/termux-apps -name "*.apk" -type f
       
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: termux-app-debug
           path: android/termux-apps/termux-app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
-          if-no-files-found: warn
       
       - name: Create Release
         if: success()
