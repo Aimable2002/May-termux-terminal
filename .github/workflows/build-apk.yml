@@ -17,6 +17,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Fix gradlew permissions
+        run: chmod +x android/termux-apps/gradlew
+      
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
