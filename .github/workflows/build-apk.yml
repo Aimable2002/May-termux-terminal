@@ -1,12 +1,6 @@
-name: Build APK - Diagnostic
+name: Build APK - Find Location
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
 
 jobs:
@@ -27,99 +21,41 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       
-      - name: Verify Java version
-        run: java -version
-      
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
       
-      - name: Check Android SDK location
-        run: |
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          echo "Android SDK location:"
-          ls -la $ANDROID_HOME/
-      
-      - name: List installed Android SDK packages
-        run: |
-          echo "=== INSTALLED PACKAGES ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed
-      
-      - name: List available platforms
-        run: |
-          echo "=== AVAILABLE PLATFORMS ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "platforms;"
-      
-      - name: List available build-tools
-        run: |
-          echo "=== AVAILABLE BUILD-TOOLS ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "build-tools;"
-      
-      - name: List available NDK versions
-        run: |
-          echo "=== AVAILABLE NDK VERSIONS ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "ndk;"
-      
-      - name: Check Gradle version
+      - name: Build APK (Clean)
         run: |
           cd android/termux-apps
-          ./gradlew --version
+          ./gradlew clean assembleDebug
       
-      - name: Check project structure
+      - name: Find and display ALL APK files with full details
         run: |
-          echo "=== PROJECT STRUCTURE ==="
-          ls -la android/termux-apps/
+          echo "=========================================="
+          echo "SEARCHING FOR ALL APK FILES"
+          echo "=========================================="
           echo ""
-          echo "=== TERMUX-APP MODULE ==="
-          ls -la android/termux-apps/termux-app/
-      
-      - name: Read gradle.properties
-        run: |
-          echo "=== GRADLE.PROPERTIES ==="
-          cat android/termux-apps/gradle.properties
-      
-      - name: Read settings.gradle.kts
-        run: |
-          echo "=== SETTINGS.GRADLE.KTS ==="
-          cat android/termux-apps/settings.gradle.kts
-      
-      - name: Build APK with full output
-        continue-on-error: true
-        run: |
-          cd android/termux-apps
-          ./gradlew clean assembleDebug --info --stacktrace 2>&1 | tee build.log
+          find android/termux-apps -name "*.apk" -type f -exec ls -lh {} \;
           echo ""
-          echo "=== BUILD COMPLETED ==="
-          tail -100 build.log
-      
-      - name: Save build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-diagnostics
-          path: android/termux-apps/build.log
-          retention-days: 30
-      
-      - name: Find all generated files and directories
-        if: always()
-        run: |
-          echo "=== SEARCHING FOR ALL BUILD OUTPUTS ==="
-          find android/termux-apps -type d -name "build" 2>/dev/null | head -20
+          echo "=========================================="
+          echo "FULL PATHS TO APK FILES"
+          echo "=========================================="
           echo ""
-          echo "=== SEARCHING FOR APK FILES ==="
-          find android/termux-apps -name "*.apk" -type f 2>/dev/null
+          find android/termux-apps -name "*.apk" -type f
           echo ""
-          echo "=== SEARCHING FOR ANY ERROR FILES ==="
-          find android/termux-apps -name "*error*" -type f 2>/dev/null | head -10
+          echo "=========================================="
+          echo "TREE VIEW OF BUILD/OUTPUTS"
+          echo "=========================================="
           echo ""
-          echo "=== TERMUX-APP BUILD DIRECTORY ==="
-          if [ -d "android/termux-apps/termux-app/build" ]; then
-            find android/termux-apps/termux-app/build -type f 2>/dev/null | head -30
-          else
-            echo "No build directory found in termux-app"
-          fi
-      
-      - name: Show final directory structure
-        if: always()
-        run: |
-          echo "=== FULL TREE OF android/termux-apps ==="
-          find android/termux-apps -type f -name "*.apk" -o -type d -name "build" | sort
+          find android/termux-apps/termux-app/build/outputs -type f 2>/dev/null | sort
+          echo ""
+          echo "=========================================="
+          echo "APK FILE INFO"
+          echo "=========================================="
+          echo ""
+          find android/termux-apps -name "*.apk" -type f | while read apk; do
+            echo "APK: $apk"
+            echo "Size: $(ls -lh "$apk" | awk '{print $5}')"
+            echo "Path: $(realpath "$apk")"
+            echo ""
+          done
