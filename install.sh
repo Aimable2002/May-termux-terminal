@@ -12,7 +12,15 @@ is_termux() {
   [ -n "${PREFIX:-}" ] && echo "$PREFIX" | grep -q "com.termux"
 }
 
-# ---- 1. dependencies --------------------------------------------------------
+# ---- 0. profile file must exist BEFORE anything else runs ------------------
+# OpenCode's own installer (step 2) looks for ~/.bashrc to append its PATH
+# line to. If that file doesn't exist yet on a fresh Termux/Linux install,
+# it silently skips that step and OpenCode ends up not on PATH. Touching it
+# here first fixes that for good, regardless of install order.
+
+PROFILE_FILE="$HOME/.bashrc"
+[ -n "${ZSH_VERSION:-}" ] && PROFILE_FILE="$HOME/.zshrc"
+touch "$PROFILE_FILE"
 
 # ---- 1. dependencies --------------------------------------------------------
 # Only what MAY's own scripts strictly require to function at all:
@@ -61,14 +69,16 @@ BIN_LINK_DIR="$INSTALL_PREFIX/bin"
 
 # ---- 4. shell profile wiring -------------------------------------------------
 
-PROFILE_FILE="$HOME/.bashrc"
-[ -n "${ZSH_VERSION:-}" ] && PROFILE_FILE="$HOME/.zshrc"
-
 if ! grep -q "MAY_INIT" "$PROFILE_FILE" 2>/dev/null; then
   {
     echo ""
     echo "# MAY_INIT"
     echo "export PATH=\"$BIN_LINK_DIR:\$PATH\""
+    # Safety net: also ensure OpenCode's own install location is on PATH,
+    # regardless of whether its installer's own auto-append worked. This
+    # is harmless even if OpenCode isn't installed or uses a different
+    # location — it's just an extra PATH entry.
+    echo "export PATH=\"\$HOME/.opencode/bin:\$PATH\""
     echo "alias menu='may'"
   } >> "$PROFILE_FILE"
 fi

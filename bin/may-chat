@@ -35,10 +35,15 @@ PYEOF
 )"
 
   local response
-  response="$(curl -sS "$BASE_URL/chat/completions" \
+  if ! response="$(curl -sS "$BASE_URL/chat/completions" \
     -H "Authorization: Bearer $API_KEY" \
     -H "Content-Type: application/json" \
-    -d "$payload")"
+    -d "$payload")"; then
+    echo
+    echo "Network error — could not reach $BASE_URL. Check your connection and try again."
+    echo
+    return 0
+  fi
 
   local tmpfile
   tmpfile="$(mktemp)"
@@ -48,10 +53,14 @@ PYEOF
   reply="$(python3 - "$tmpfile" <<'PYEOF'
 import json, sys
 with open(sys.argv[1]) as f:
-    data = json.load(f)
+    try:
+        data = json.load(f)
+    except Exception as e:
+        print("Could not parse API response: " + str(e))
+        sys.exit(0)
 if "error" in data:
     print("API error: " + str(data["error"]))
-    sys.exit(1)
+    sys.exit(0)
 try:
     print(data["choices"][0]["message"]["content"])
 except Exception:
