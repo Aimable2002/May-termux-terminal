@@ -118,6 +118,7 @@ abstract class CleanBootstrapsTask : DefaultTask() {
 
 tasks.register<CleanBootstrapsTask>("cleanBootstraps") {
     projectDir = layout.projectDirectory
+    mustRunAfter("mergeDebugNativeDebugMetadata", "mergeReleaseNativeDebugMetadata")
 }
 
 tasks.named("clean") {
