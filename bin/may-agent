@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+
+require_api_key
+MODEL="${1:-$(get_default_model)}"
+
+if ! command -v opencode >/dev/null 2>&1; then
+  echo "OpenCode isn't installed yet."
+  echo "Install it with:"
+  echo "  curl -fsSL https://opencode.ai/install | bash"
+  echo "Then re-run: may agent"
+  exit 1
+fi
+
+# Confirmed against OpenCode's docs (opencode.ai/docs/providers,
+# openrouter.ai/docs/cookbook/coding-agents/opencode-integration):
+# OpenRouter is a first-class built-in provider. OpenCode picks it up via
+# the OPENROUTER_API_KEY env var, and/or an explicit provider block in
+# opencode.json using the @ai-sdk/openai-compatible adapter.
+#
+# We do both:
+#  1. Export OPENROUTER_API_KEY so OpenCode's built-in OpenRouter provider
+#     just works, no /connect step needed.
+#  2. Write a minimal opencode.json (only if one doesn't already exist in
+#     the project) so the default model is set without an interactive
+#     /models prompt every time.
+export OPENROUTER_API_KEY="$API_KEY"
+
+OPENCODE_CONFIG="opencode.json"
+if [ ! -f "$OPENCODE_CONFIG" ]; then
+  python3 - "$OPENCODE_CONFIG" "$MODEL" <<'PYEOF'
+import json, sys
+config_path, model = sys.argv[1], sys.argv[2]
+config = {
+    "$schema": "https://opencode.ai/config.json",
+    "provider": {
+        "openrouter": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "OpenRouter",
+            "options": {
+                "baseURL": "https://openrouter.ai/api/v1",
+                "apiKey": "{env:OPENROUTER_API_KEY}"
+            },
+            "models": {
+                model: {"name": model}
+            }
+        }
+    },
+    "model": f"openrouter/{model}"
+}
+with open(config_path, "w") as f:
+    json.dump(config, f, indent=2)
+print(f"Wrote {config_path} (default model: {model})")
+PYEOF
+fi
+
+echo "Launching OpenCode agent (model: $MODEL) in: $(pwd)"
+echo "Working directory is whatever you 'cd'-ed into before running this."
+echo
+
+exec opencode

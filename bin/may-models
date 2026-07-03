@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+
+require_api_key
+BASE_URL="$(get_base_url)"
+
+response="$(curl -sS "$BASE_URL/models" -H "Authorization: Bearer $API_KEY")"
+tmpfile="$(mktemp)"
+printf '%s' "$response" > "$tmpfile"
+
+python3 - "$tmpfile" <<'PYEOF'
+import json, sys
+
+with open(sys.argv[1]) as f:
+    try:
+        data = json.load(f)
+    except Exception as e:
+        print("Could not parse response:", e)
+        sys.exit(1)
+
+models = data.get("data", [])
+if not models:
+    print("No models returned. Response was:")
+    print(json.dumps(data)[:500])
+    sys.exit(0)
+
+free = [m for m in models if str(m.get("id", "")).endswith(":free")
+        or (m.get("pricing", {}).get("prompt") in ("0", 0, "0.0"))]
+paid = [m for m in models if m not in free]
+
+def show(title, items, limit=25):
+    print(f"-- {title} ({len(items)}) --")
+    for m in items[:limit]:
+        print(f"  {m.get('id')}")
+    if len(items) > limit:
+        print(f"  ... and {len(items) - limit} more")
+    print()
+
+show("Free models", free)
+show("Paid models", paid)
+print("Set a default with: may config")
+PYEOF
+rm -f "$tmpfile"
