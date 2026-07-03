@@ -26,12 +26,9 @@ jobs:
       
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-      
-      - name: Install Android SDK components
-        run: |
-          sdkmanager "platforms;android-37"
-          sdkmanager "ndk;29.0.0"
-          sdkmanager "build-tools;37.0.0"
+        with:
+          api-level: 37
+          ndk-version: 29.0.0
       
       - name: Make gradlew executable
         run: chmod +x android/termux-apps/gradlew
@@ -39,7 +36,7 @@ jobs:
       - name: Build APK (Debug)
         run: |
           cd android/termux-apps
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
       
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
@@ -47,10 +44,11 @@ jobs:
           name: termux-app-debug
           path: android/termux-apps/termux-app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+          if-no-files-found: warn
       
       - name: Create Release
         if: success()
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: android/termux-apps/termux-app/build/outputs/apk/debug/app-debug.apk
           tag_name: v${{ github.run_number }}
