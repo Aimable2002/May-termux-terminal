@@ -4,4 +4,6 @@
     <color name="colorPrimaryDark">#000</color>
     <color name="colorAccent">#616161</color>
     <color name="red_error">#DC143C</color>
+    <color name="may_icon_background">#FF0B1220</color>
+    <color name="may_accent">#FF34D399</color>
 </resources>
