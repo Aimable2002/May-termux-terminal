@@ -8,6 +8,39 @@ MAY_CONFIG_DIR="${MAY_CONFIG_DIR:-$HOME/.config/may}"
 MAY_CONFIG_FILE="$MAY_CONFIG_DIR/config.json"
 MAY_DEFAULT_BASE_URL="https://openrouter.ai/api/v1"
 
+# ---- colors (auto-disabled if not a real terminal, or NO_COLOR is set) ----
+# Any may-* script can use these — not just bin/may. Colors are skipped
+# automatically when output is piped/redirected, so scripts stay scriptable.
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_RESET=$'\033[0m'
+  C_BOLD=$'\033[1m'
+  C_DIM=$'\033[2m'
+  C_CYAN=$'\033[36m'
+  C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'
+  C_MAGENTA=$'\033[35m'
+else
+  C_RESET=''; C_BOLD=''; C_DIM=''; C_CYAN=''; C_GREEN=''; C_YELLOW=''; C_MAGENTA=''
+fi
+
+# Prints the MAY ASCII wordmark. Shared so any may-* command can open with
+# it, not just the main menu.
+print_may_banner() {
+  printf '%s' "${C_MAGENTA}${C_BOLD}"
+  cat <<'EOF'
+
+  ███╗   ███╗ █████╗ ██╗   ██╗ █████╗
+  ████╗ ████║██╔══██╗╚██╗ ██╔╝██╔══██╗
+  ██╔████╔██║███████║ ╚████╔╝ ╚██████║
+  ██║╚██╔╝██║██╔══██║  ╚██╔╝   ╚═══██║
+  ██║ ╚═╝ ██║██║  ██║   ██║   █████╔╝
+  ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚════╝
+  
+EOF
+  printf '%s\n' "${C_RESET}${C_DIM}  copy-trading terminal${C_RESET}"
+}
+
 # ---- dependency checks -----------------------------------------------------
 
 require_cmd() {

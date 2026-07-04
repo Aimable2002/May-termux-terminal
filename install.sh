@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# install.sh — sets up MAY on Termux (Android) or a normal PC shell.
+# install.sh — sets up MAY on Termux (Android) or a normal PC shell, then
+# clones, installs, and launches the MAY9 signal bot.
 # Usage: curl -fsSL https://may.dev/install | bash
 set -euo pipefail
 
-INSTALL_SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MAY_TERMINAL_REPO_URL="https://github.com/Aimable2002/May-termux-terminal.git"
+BOT_REPO_URL="https://github.com/May-DeFi/May_perp_bot_example.git"
+
 INSTALL_PREFIX="${MAY_PREFIX:-$HOME/.local/share/may}"
+TERMINAL_SRC_DIR="$INSTALL_PREFIX/terminal-src"
+BOT_SRC_DIR="$INSTALL_PREFIX/may9bot-src"
+BOT_APP_DIR="$BOT_SRC_DIR/may9bot"
 
 echo "== Installing MAY =="
 
@@ -13,23 +19,11 @@ is_termux() {
 }
 
 # ---- 0. profile file must exist BEFORE anything else runs ------------------
-# OpenCode's own installer (step 2) looks for ~/.bashrc to append its PATH
-# line to. If that file doesn't exist yet on a fresh Termux/Linux install,
-# it silently skips that step and OpenCode ends up not on PATH. Touching it
-# here first fixes that for good, regardless of install order.
-
 PROFILE_FILE="$HOME/.bashrc"
 [ -n "${ZSH_VERSION:-}" ] && PROFILE_FILE="$HOME/.zshrc"
 touch "$PROFILE_FILE"
 
 # ---- 1. dependencies --------------------------------------------------------
-# Only what MAY's own scripts strictly require to function at all:
-#   - git    : device sync
-#   - python3: JSON parsing in lib/common.sh (config + API calls)
-#   - curl   : talking to OpenRouter's API
-# Nothing else is force-installed — the terminal is still just a terminal.
-# OpenCode's own installer (below) handles whatever runtime it needs itself.
-
 if is_termux; then
   echo "Detected: Termux (Android)"
   pkg update -y
@@ -37,7 +31,7 @@ if is_termux; then
 elif command -v apt >/dev/null 2>&1; then
   echo "Detected: Linux (apt)"
   sudo apt update
-  sudo apt install -y git python3 curl
+  sudo apt install -y git python3 python3-pip curl
 elif command -v brew >/dev/null 2>&1; then
   echo "Detected: macOS (Homebrew)"
   brew install git python3 curl
@@ -48,43 +42,81 @@ else
 fi
 
 # ---- 2. OpenCode ------------------------------------------------------------
-
 if ! command -v opencode >/dev/null 2>&1; then
   echo "Installing OpenCode..."
   curl -fsSL https://opencode.ai/install | bash || \
     echo "OpenCode install failed — you can retry later, agent mode just won't work until it's installed."
 fi
 
-# ---- 3. copy the script suite into place -----------------------------------
+# ---- 3. get the MAY terminal scripts onto disk ------------------------------
+# FIX: previously this assumed bin/ and lib/ sat next to this script on disk
+# via `$(dirname "${BASH_SOURCE[0]}")`. That breaks silently under the
+# documented `curl -fsSL ... | bash` install method, because BASH_SOURCE[0]
+# is empty when a script is piped into bash (no file on disk to point to) —
+# dirname then resolves to ".", i.e. whatever directory the user happened to
+# be sitting in, not the actual repo. So bin/ never got copied correctly and
+# `may` was never actually reachable afterward.
+#
+# Fix: always git clone the terminal repo directly into the install prefix.
+# This works identically whether install.sh was piped or run from a local
+# checkout, since it no longer depends on its own on-disk location at all.
 
 mkdir -p "$INSTALL_PREFIX"
-cp -r "$INSTALL_SRC_DIR/bin" "$INSTALL_SRC_DIR/lib" "$INSTALL_PREFIX/"
+if [ -d "$TERMINAL_SRC_DIR/.git" ]; then
+  echo "MAY terminal source already present — updating..."
+  git -C "$TERMINAL_SRC_DIR" pull --ff-only
+else
+  echo "Cloning MAY terminal source..."
+  git clone --depth 1 "$MAY_TERMINAL_REPO_URL" "$TERMINAL_SRC_DIR"
+fi
+
+cp -r "$TERMINAL_SRC_DIR/bin" "$TERMINAL_SRC_DIR/lib" "$INSTALL_PREFIX/"
 chmod +x "$INSTALL_PREFIX"/bin/*
 
-# NOTE: we deliberately do NOT symlink these into ~/.local/bin or
-# $PREFIX/bin. Each script locates lib/common.sh relative to its own real
-# path, and a symlink elsewhere would break that lookup. Instead we add the
-# real install directory straight to PATH below.
 BIN_LINK_DIR="$INSTALL_PREFIX/bin"
 
 # ---- 4. shell profile wiring -------------------------------------------------
-
 if ! grep -q "MAY_INIT" "$PROFILE_FILE" 2>/dev/null; then
   {
     echo ""
     echo "# MAY_INIT"
     echo "export PATH=\"$BIN_LINK_DIR:\$PATH\""
-    # Safety net: also ensure OpenCode's own install location is on PATH,
-    # regardless of whether its installer's own auto-append worked. This
-    # is harmless even if OpenCode isn't installed or uses a different
-    # location — it's just an extra PATH entry.
     echo "export PATH=\"\$HOME/.opencode/bin:\$PATH\""
     echo "alias menu='may'"
   } >> "$PROFILE_FILE"
 fi
+# Also export for the rest of *this* run, so the bot launch below works
+# immediately without requiring a new shell first.
+export PATH="$BIN_LINK_DIR:$PATH"
+
+# ---- 5. clone + install the MAY9 signal bot ---------------------------------
+echo
+echo "== Setting up MAY9 signal bot =="
+if [ -d "$BOT_SRC_DIR/.git" ]; then
+  echo "Bot source already present — updating..."
+  git -C "$BOT_SRC_DIR" pull --ff-only
+else
+  echo "Cloning MAY9 signal bot..."
+  git clone --depth 1 "$BOT_REPO_URL" "$BOT_SRC_DIR"
+fi
+
+cd "$BOT_APP_DIR"
+if ! pip3 install -r requirements.txt 2>/tmp/may-install-pip.log; then
+  echo "Plain pip install failed (likely externally-managed environment)."
+  echo "Retrying with --break-system-packages..."
+  pip3 install -r requirements.txt --break-system-packages
+fi
 
 echo
 echo "Install complete."
-echo "Open a new shell (or run: source $PROFILE_FILE), then run:"
+echo "Open a new shell (or run: source $PROFILE_FILE) so 'may' stays on PATH."
+echo "From then on:"
 echo "  may config     # set up your API key"
+echo "  may trading    # relaunch the MAY9 signal bot any time"
 echo "  may            # open the menu"
+
+# ---- 6. launch the bot now ---------------------------------------------------
+echo
+echo "Launching MAY9 signal bot..."
+cd "$BOT_APP_DIR"
+exec python3 may9bot.py

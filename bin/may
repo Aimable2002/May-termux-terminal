@@ -6,20 +6,23 @@ source "$SCRIPT_DIR/../lib/common.sh"
 
 show_menu() {
   echo
-  echo "  MAY — commands"
-  echo "  ----------------------------------------"
-  echo "  may chat        Chat with AI"
-  echo "  may agent       Agent mode (OpenCode)"
-  echo "  may models      Browse models"
-  echo "  may config      Change API key / provider"
-  echo "  may install X   Install a package (X = name)"
-  echo "  ----------------------------------------"
+  print_may_banner
+  echo
+  printf '%s\n' "${C_CYAN}  ────────────────────────────────────────${C_RESET}"
+  printf '  %s%-14s%s %s\n' "$C_GREEN"   "may chat"      "$C_RESET" "Chat with AI"
+  printf '  %s%-14s%s %s\n' "$C_GREEN"   "may agent"     "$C_RESET" "Agent mode (OpenCode)"
+  printf '  %s%-14s%s %s\n' "$C_GREEN"   "may models"    "$C_RESET" "Browse models"
+  printf '  %s%-14s%s %s\n' "$C_GREEN"   "may config"    "$C_RESET" "Change API key / provider"
+  printf '  %s%-14s%s %s\n' "$C_YELLOW"  "may trading"   "$C_RESET" "Launch the MAY9 signal bot"
+  printf '  %s%-14s%s %s\n' "$C_GREEN"   "may install X" "$C_RESET" "Install a package (X = name)"
+  printf '%s\n' "${C_CYAN}  ────────────────────────────────────────${C_RESET}"
   if ! config_exists; then
-    echo "  (no API key set yet — run 'may config' to set one up)"
+    printf '%s\n' "${C_DIM}  (no API key set yet — run 'may config' to set one up)${C_RESET}"
   fi
-  echo "  This is a normal command — run it any time from your shell,"
-  echo "  same as git, ls, or anything else. It never takes over your"
-  echo "  terminal or blocks other commands."
+  echo
+  printf '%s\n' "${C_DIM}  This is a normal command — run it any time from your shell,${C_RESET}"
+  printf '%s\n' "${C_DIM}  same as git, ls, or anything else. It never takes over your${C_RESET}"
+  printf '%s\n' "${C_DIM}  terminal or blocks other commands.${C_RESET}"
   echo
 }
 
@@ -47,11 +50,12 @@ install_package() {
 # whole point of building this on top of a real terminal instead of a
 # custom app shell.
 case "${1:-}" in
-  chat)   shift; exec "$SCRIPT_DIR/may-chat" "$@" ;;
-  agent)  shift; exec "$SCRIPT_DIR/may-agent" "$@" ;;
-  models) shift; exec "$SCRIPT_DIR/may-models" "$@" ;;
-  config) shift; exec "$SCRIPT_DIR/may-config" "$@" ;;
-  install) shift; install_package "${1:-}" ;;
+  chat)     shift; exec "$SCRIPT_DIR/may-chat" "$@" ;;
+  agent)    shift; exec "$SCRIPT_DIR/may-agent" "$@" ;;
+  models)   shift; exec "$SCRIPT_DIR/may-models" "$@" ;;
+  config)   shift; exec "$SCRIPT_DIR/may-config" "$@" ;;
+  trading)  shift; exec "$SCRIPT_DIR/may-trading" "$@" ;;
+  install)  shift; install_package "${1:-}" ;;
   ""|help|menu|-h|--help) show_menu ;;
   *)
     echo "Unknown 'may' command: $1" >&2

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# bin/may-trading
+#
+# Launches the MAY9 signal bot that install.sh already cloned and installed.
+# This is what the user runs every time after the initial install — the
+# install itself only needs to happen once.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/common.sh
+source "$SCRIPT_DIR/../lib/common.sh"
+
+MAY_HOME="${MAY_PREFIX:-$HOME/.local/share/may}"
+BOT_APP_DIR="$MAY_HOME/may9bot-src/may9bot"
+
+if [ ! -f "$BOT_APP_DIR/may9bot.py" ]; then
+  echo "MAY9 bot isn't installed yet." >&2
+  echo "Run the installer first:" >&2
+  echo "  curl -fsSL https://may.dev/install | bash" >&2
+  exit 1
+fi
+
+cd "$BOT_APP_DIR"
+exec python3 may9bot.py "$@"
