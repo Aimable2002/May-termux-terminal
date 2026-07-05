@@ -4,7 +4,6 @@
 # Usage: curl -fsSL https://may.dev/install | bash
 set -euo pipefail
 
-MAY_TERMINAL_REPO_URL="https://github.com/Aimable2002/May-termux-terminal.git"
 BOT_REPO_URL="https://github.com/May-DeFi/May_perp_bot_example.git"
 
 INSTALL_PREFIX="${MAY_PREFIX:-$HOME/.local/share/may}"
@@ -65,9 +64,6 @@ mkdir -p "$INSTALL_PREFIX"
 if [ -d "$TERMINAL_SRC_DIR/.git" ]; then
   echo "MAY terminal source already present — updating..."
   git -C "$TERMINAL_SRC_DIR" pull --ff-only
-else
-  echo "Cloning MAY terminal source..."
-  git clone --depth 1 "$MAY_TERMINAL_REPO_URL" "$TERMINAL_SRC_DIR"
 fi
 
 cp -r "$TERMINAL_SRC_DIR/bin" "$TERMINAL_SRC_DIR/lib" "$INSTALL_PREFIX/"

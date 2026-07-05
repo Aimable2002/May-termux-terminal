@@ -1,24 +1,81 @@
 #!/usr/bin/env bash
-# bin/may-trading
-#
-# Launches the MAY9 signal bot that install.sh already cloned and installed.
-# This is what the user runs every time after the initial install — the
-# install itself only needs to happen once.
-
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-MAY_HOME="${MAY_PREFIX:-$HOME/.local/share/may}"
-BOT_APP_DIR="$MAY_HOME/may9bot-src/may9bot"
+require_cmd git
+require_cmd python3
 
-if [ ! -f "$BOT_APP_DIR/may9bot.py" ]; then
-  echo "MAY9 bot isn't installed yet." >&2
-  echo "Run the installer first:" >&2
-  echo "  curl -fsSL https://may.dev/install | bash" >&2
-  exit 1
-fi
+REPO_URL="https://github.com/May-DeFi/May_perp_bot_example.git"
+INSTALL_DIR="$HOME/.may-trading/May_perp_bot_example"
+BOT_DIR="$INSTALL_DIR/may9bot"
 
-cd "$BOT_APP_DIR"
-exec python3 may9bot.py "$@"
+clone_if_missing() {
+  if [ ! -d "$INSTALL_DIR/.git" ]; then
+    echo "Cloning MAY9 trading bot (first run only)..."
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    git clone "$REPO_URL" "$INSTALL_DIR"
+  fi
+}
+
+install_deps() {
+  echo "Checking Python dependencies..."
+  local pip_cmd="pip"
+  command -v pip3 >/dev/null 2>&1 && pip_cmd="pip3"
+
+  if ! (cd "$BOT_DIR" && "$pip_cmd" install -q -r requirements.txt 2>/tmp/may-pip-err.log); then
+    if grep -q "externally-managed-environment" /tmp/may-pip-err.log 2>/dev/null; then
+      # Debian/Ubuntu (PEP 668) — Termux and most other environments don't
+      # hit this. Safe to override here since this is an isolated bot
+      # dependency install, not a system-wide change.
+      echo "System Python is externally managed — retrying with --break-system-packages..."
+      (cd "$BOT_DIR" && "$pip_cmd" install -q -r requirements.txt --break-system-packages)
+    else
+      cat /tmp/may-pip-err.log >&2
+      return 1
+    fi
+  fi
+  rm -f /tmp/may-pip-err.log
+}
+
+run_bot() {
+  echo
+  echo "Launching MAY9 trading bot — Ctrl+C to stop."
+  echo
+  cd "$BOT_DIR"
+  exec python3 may9bot.py
+}
+
+do_update() {
+  if [ ! -d "$INSTALL_DIR/.git" ]; then
+    echo "Trading bot isn't installed yet. Run 'may trading' first." >&2
+    exit 1
+  fi
+  echo "Pulling latest changes..."
+  (cd "$INSTALL_DIR" && git pull)
+  install_deps
+  echo
+  echo "Updated. This did NOT restart the bot if it was already running —"
+  echo "stop any running instance yourself, then run 'may trading' to start"
+  echo "the updated version. Updates are never applied automatically while"
+  echo "the bot is live, since it may be holding open positions."
+}
+
+case "${1:-}" in
+  update|--update)
+    do_update
+    ;;
+  "")
+    # Default path: clone only if this is the very first run. Deliberately
+    # does NOT auto-pull on every launch — updates only happen when you
+    # explicitly run 'may trading update', never silently.
+    clone_if_missing
+    install_deps
+    run_bot
+    ;;
+  *)
+    echo "Usage: may trading | may trading update" >&2
+    exit 1
+    ;;
+esac
