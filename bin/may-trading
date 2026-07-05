@@ -4,33 +4,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-require_cmd git
-require_cmd python3
-
-REPO_URL="https://github.com/May-DeFi/May_perp_bot_example.git"
-INSTALL_DIR="$HOME/.may-trading/May_perp_bot_example"
-BOT_DIR="$INSTALL_DIR/may9bot"
-
-clone_if_missing() {
-  if [ ! -d "$INSTALL_DIR/.git" ]; then
-    echo "Cloning MAY9 trading bot (first run only)..."
-    mkdir -p "$(dirname "$INSTALL_DIR")"
-    git clone "$REPO_URL" "$INSTALL_DIR"
-  fi
-}
+BOT_SRC_DIR="$HOME/.may-trading/May_perp_bot_example"
+BOT_APP_DIR="$BOT_SRC_DIR/may9bot"
 
 install_deps() {
   echo "Checking Python dependencies..."
   local pip_cmd="pip"
   command -v pip3 >/dev/null 2>&1 && pip_cmd="pip3"
 
-  if ! (cd "$BOT_DIR" && "$pip_cmd" install -q -r requirements.txt 2>/tmp/may-pip-err.log); then
+  if ! (cd "$BOT_APP_DIR" && "$pip_cmd" install -q -r requirements.txt 2>/tmp/may-pip-err.log); then
     if grep -q "externally-managed-environment" /tmp/may-pip-err.log 2>/dev/null; then
-      # Debian/Ubuntu (PEP 668) — Termux and most other environments don't
-      # hit this. Safe to override here since this is an isolated bot
-      # dependency install, not a system-wide change.
       echo "System Python is externally managed — retrying with --break-system-packages..."
-      (cd "$BOT_DIR" && "$pip_cmd" install -q -r requirements.txt --break-system-packages)
+      (cd "$BOT_APP_DIR" && "$pip_cmd" install -q -r requirements.txt --break-system-packages)
     else
       cat /tmp/may-pip-err.log >&2
       return 1
@@ -40,20 +25,25 @@ install_deps() {
 }
 
 run_bot() {
+  if [ ! -d "$BOT_SRC_DIR/.git" ]; then
+    echo "Trading bot isn't installed yet." >&2
+    echo "Run install.sh first — it sets up the bot as part of MAY's setup." >&2
+    exit 1
+  fi
   echo
   echo "Launching MAY9 trading bot — Ctrl+C to stop."
   echo
-  cd "$BOT_DIR"
+  cd "$BOT_APP_DIR"
   exec python3 may9bot.py
 }
 
 do_update() {
-  if [ ! -d "$INSTALL_DIR/.git" ]; then
-    echo "Trading bot isn't installed yet. Run 'may trading' first." >&2
+  if [ ! -d "$BOT_SRC_DIR/.git" ]; then
+    echo "Trading bot isn't installed yet. Run install.sh first." >&2
     exit 1
   fi
   echo "Pulling latest changes..."
-  (cd "$INSTALL_DIR" && git pull)
+  git -C "$BOT_SRC_DIR" pull
   install_deps
   echo
   echo "Updated. This did NOT restart the bot if it was already running —"
@@ -67,11 +57,6 @@ case "${1:-}" in
     do_update
     ;;
   "")
-    # Default path: clone only if this is the very first run. Deliberately
-    # does NOT auto-pull on every launch — updates only happen when you
-    # explicitly run 'may trading update', never silently.
-    clone_if_missing
-    install_deps
     run_bot
     ;;
   *)
