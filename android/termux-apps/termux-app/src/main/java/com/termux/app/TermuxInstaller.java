@@ -80,6 +80,7 @@ final class TermuxInstaller {
 
         // If prefix directory exists, even if its a symlink to a valid directory and symlink is not broken/dangling
         if (new File(TermuxConstants.PREFIX_PATH).exists()) {
+            MayBootstrap.runIfNeeded(activity, new File(TermuxConstants.HOME_PATH));
             whenDone.run();
             return;
         }
@@ -161,6 +162,8 @@ final class TermuxInstaller {
                 }
 
                 Os.rename(TERMUX_STAGING_PREFIX_DIR_PATH, TermuxConstants.PREFIX_PATH);
+
+                MayBootstrap.runIfNeeded(activity, new File(TermuxConstants.HOME_PATH));
 
                 activity.runOnUiThread(whenDone);
             } catch (final Exception e) {
