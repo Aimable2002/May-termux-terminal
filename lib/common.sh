@@ -155,7 +155,7 @@ get_default_model() {
   local model
   model="$(config_get default_model)"
   if [ -z "$model" ]; then
-    echo "meta-llama/llama-3.1-8b-instruct:free"
+    echo "meta-llama/llama-3.1-8b-instruct"
   else
     echo "$model"
   fi
