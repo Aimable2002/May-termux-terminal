@@ -95,16 +95,18 @@ else
   git clone --depth 1 "$BOT_REPO_URL" "$BOT_SRC_DIR"
 fi
 
-if ! (cd "$BOT_APP_DIR" && pip3 install -q -r requirements.txt 2>/tmp/may-install-pip.log); then
-  if grep -q "externally-managed-environment" /tmp/may-install-pip.log 2>/dev/null; then
+PIP_LOG="$(mktemp)"
+if ! (cd "$BOT_APP_DIR" && pip3 install -q -r requirements.txt 2>"$PIP_LOG"); then
+  if grep -q "externally-managed-environment" "$PIP_LOG" 2>/dev/null; then
     echo "System Python is externally managed — retrying with --break-system-packages..."
     (cd "$BOT_APP_DIR" && pip3 install -q -r requirements.txt --break-system-packages)
   else
-    cat /tmp/may-install-pip.log >&2
+    cat "$PIP_LOG" >&2
+    rm -f "$PIP_LOG"
     exit 1
   fi
 fi
-rm -f /tmp/may-install-pip.log
+rm -f "$PIP_LOG"
 
 # Deliberately no bot launch here. Starting a trading bot is never a side
 # effect of running/re-running an installer — it's always an explicit,

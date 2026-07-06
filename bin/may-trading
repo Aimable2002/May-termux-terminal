@@ -11,17 +11,42 @@ install_deps() {
   echo "Checking Python dependencies..."
   local pip_cmd="pip"
   command -v pip3 >/dev/null 2>&1 && pip_cmd="pip3"
+  local pip_log
+  pip_log="$(mktemp)"
 
-  if ! (cd "$BOT_APP_DIR" && "$pip_cmd" install -q -r requirements.txt 2>/tmp/may-pip-err.log); then
-    if grep -q "externally-managed-environment" /tmp/may-pip-err.log 2>/dev/null; then
+  if ! (cd "$BOT_APP_DIR" && "$pip_cmd" install -q -r requirements.txt 2>"$pip_log"); then
+    if grep -q "externally-managed-environment" "$pip_log" 2>/dev/null; then
       echo "System Python is externally managed — retrying with --break-system-packages..."
       (cd "$BOT_APP_DIR" && "$pip_cmd" install -q -r requirements.txt --break-system-packages)
     else
-      cat /tmp/may-pip-err.log >&2
+      cat "$pip_log" >&2
+      rm -f "$pip_log"
       return 1
     fi
   fi
-  rm -f /tmp/may-pip-err.log
+  rm -f "$pip_log"
+}
+
+# Cheap, local, no-network check: is everything in requirements.txt actually
+# installed right now? Uses 'pip show' (reads local package metadata only)
+# rather than hardcoding package names, so it can't drift out of sync with
+# requirements.txt, and rather than re-running 'pip install' on every single
+# launch (slow, needs network). Still catches the case where requirements.txt
+# was never fully installed (e.g. a prior install.sh run failed partway
+# through) — so 'may trading' never hands the user a raw ModuleNotFoundError.
+deps_missing() {
+  local pip_cmd="pip"
+  command -v pip3 >/dev/null 2>&1 && pip_cmd="pip3"
+  local pkg
+  while IFS= read -r pkg; do
+    [ -z "$pkg" ] && continue
+    case "$pkg" in \#*) continue ;; esac
+    # strip version specifiers / extras / whitespace, keep bare package name
+    pkg="$(echo "$pkg" | sed -E 's/[[:space:]]*[<>=!~;].*//; s/\[.*\]//' | xargs)"
+    [ -z "$pkg" ] && continue
+    "$pip_cmd" show "$pkg" >/dev/null 2>&1 || return 0
+  done < "$BOT_APP_DIR/requirements.txt"
+  return 1
 }
 
 run_bot() {
@@ -30,6 +55,19 @@ run_bot() {
     echo "Run install.sh first — it sets up the bot as part of MAY's setup." >&2
     exit 1
   fi
+
+  if deps_missing; then
+    echo "Some required packages are missing — installing them now..."
+    if ! install_deps; then
+      echo "Couldn't install dependencies automatically. See the error above." >&2
+      exit 1
+    fi
+    if deps_missing; then
+      echo "Dependencies still missing after install — something's wrong with the environment." >&2
+      exit 1
+    fi
+  fi
+
   echo
   echo "Launching MAY9 trading bot — Ctrl+C to stop."
   echo
